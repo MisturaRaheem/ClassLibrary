@@ -1,0 +1,63 @@
+# ASP.NET Core (.NET Framework)
+# Build and test ASP.NET Core projects targeting the full .NET Framework.
+# Add steps that publish symbols, save build artifacts, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/languages/dotnet-core
+
+# .NET Class Library - NuGet Package Build Pipeline
+# Build, test, pack and publish a .NET class library as NuGet package
+
+trigger:
+- master
+
+pool:
+  vmImage: 'windows-latest'
+
+variables:
+  solution: '**/*.sln'
+  buildPlatform: 'Any CPU'
+  buildConfiguration: 'Release'
+  projectName: 'ClassLibraryProjects'  
+  majorVersion: '1'
+  minorVersion: '0'
+  patchVersion: '0'
+  buildVersion: '$(majorVersion).$(minorVersion).$(patchVersion).$(Build.BuildId)'
+
+steps:
+- task: DotNetCoreCLI@2
+  displayName: 'Restore packages'
+  inputs:
+    command: 'restore'
+    projects: '**/*.csproj'
+
+- task: DotNetCoreCLI@2
+  displayName: 'Build project'
+  inputs:
+    command: 'build'
+    projects: '**/*.csproj'
+    arguments: '--configuration $(buildConfiguration) /p:Version=$(buildVersion)'
+
+# This task would run tests if you have test projects
+- task: DotNetCoreCLI@2
+  displayName: 'Run tests'
+  inputs:
+    command: 'test'
+    projects: '**/*Tests.csproj'
+    arguments: '--configuration $(buildConfiguration)'
+  continueOnError: true  # Optional: allows pipeline to continue even if tests fail
+
+- task: DotNetCoreCLI@2
+  displayName: 'Pack NuGet package'
+  inputs:
+    command: 'pack'
+    packagesToPack: '**/$(projectName).csproj'
+    versioningScheme: 'byEnvVar'
+    versionEnvVar: 'buildVersion'
+    outputDir: '$(Build.ArtifactStagingDirectory)'
+
+- task: NuGetCommand@2
+  displayName: 'Push NuGet package to Azure Artifacts'
+  inputs:
+    command: 'push'
+    packagesToPush: '$(Build.ArtifactStagingDirectory)/**/*.nupkg'
+    nuGetFeedType: 'internal'
+    publishVstsFeed: 'ClassLibraryProjects/ClassLibraryFeed'  
